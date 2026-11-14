@@ -8,36 +8,54 @@
 
 ## 它做什么
 
-- 给出"什么算超时"的判定：工具超时、审批被拒、已问未答、以及 agent 自己冒出的"等不到所以先这样"。
+- 给出"什么算超时"的判定：`timed` 返回 `pending`、稍后到达的 `answer_to_pending_question`、`selected` 为空（用户跳过）、无回答者的 blocking error、明确 deny，以及 agent 自己冒出的"等不到所以先这样"。
 - 按**猜错的代价**分三档（可逆 / 半可逆 / 不可逆），只有可逆档允许按推荐继续。
 - 规定挂留卡的格式：问题 / 选项 / 推荐与理由 / 等待的代价 / 一直不回会怎样。
-- 规定出口：决策必须出现在最终可见回复里、用编号列出，用户回一个数字即可。
-- 规定恢复：回数字即执行；回"你定"视为授权并记为假设；工具提问最多重发一次。
+- 规定出口：决策必须出现在最终可见回复里、用编号列出，用户回 `2` 或 `Q2-2` 即可。
+- 规定恢复：回数字/关键词即执行；回"你定"只授权卡内推荐项；工具提问最多重发一次。
 
 ## 安装
 
+DSH 0.2.1-rc.5 没有 `dsh skill add`；技能由 `$DSH_HOME/skills`（默认 `~/.dsh/skills`）或项目 `.dsh/skills` 扫描加载。
+
+POSIX：
+
 ```bash
-git clone https://github.com/berserkross/dsh-skill-ask-timeout.git \
-  "$DSH_HOME/skills/ask-timeout-protocol"
+DSH_DIR="${DSH_HOME:-$HOME/.dsh}"
+mkdir -p "$DSH_DIR/skills"
+git clone --depth 1 https://github.com/berserkross/dsh-skill-ask-timeout.git \
+  "$DSH_DIR/skills/ask-timeout-protocol"
 ```
 
 Windows PowerShell：
 
 ```powershell
-git clone https://github.com/berserkross/dsh-skill-ask-timeout.git "$env:USERPROFILE\Documents\Codex\.dsh\skills\ask-timeout-protocol"
+$dshDir = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
+New-Item -ItemType Directory -Force "$dshDir\skills" | Out-Null
+git clone --depth 1 https://github.com/berserkross/dsh-skill-ask-timeout.git "$dshDir\skills\ask-timeout-protocol"
 ```
 
-技能目录下的 `SKILL.md` 就是全部内容，无需重启 DSH：技能目录是按需扫描的。
+更新（已是 git 克隆）：
+
+```bash
+git -C "${DSH_HOME:-$HOME/.dsh}/skills/ask-timeout-protocol" pull --ff-only
+```
+
+卸载：删除 `$DSH_HOME/skills/ask-timeout-protocol`（或项目 `.dsh/skills/ask-timeout-protocol`）。
+验证：新会话的技能列表里出现 `ask-timeout-protocol`，或在 DSH 设置的技能页确认。
+
+> 仓库名是 `dsh-skill-ask-timeout`，技能名是 `ask-timeout-protocol`；安装目录建议用后者。
 
 ## 什么时候会被用到
 
-凡是"必须请示才能动手"的场景：改代码、装卸插件、改配置、批量操作、部署、
-任何删除/覆盖/推送/发布/安装，以及需要对外发请求或花钱的动作。
+在已经发出请示之后：工具超时 / 无人应答 / 审批无响应 / 用户长时间不在，或者你发现自己想说"等不到所以先这样"。
+它不决定"要不要问"；要不要问由 `clarify-first` / `plan-confirm` 这类协议决定。
 
 ## 设计取向
 
 - **宁可停着，也不要猜。** 等待的成本是一次回复，猜错的成本是一次返工加一次信任损失。
-- **不新增提问。** 它不改变"要不要问"（那是 clarify-first / plan-confirm 的事），只管"问了没人答"。
+- **不新增决策。** 它不改变"要不要问"，只管"问了没人答"；同一决策最多重问一次。
+- **宿主/用户规则优先。** 本协议只约束等待后的行为，不产生新的授权；C 盘写入、安装、删除、推送等要求先批准的规则仍然有效。
 - **可执行。** 每条规则都写成能直接照做的一句话，而不是态度描述。
 
 ## 许可
